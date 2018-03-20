@@ -10,7 +10,7 @@ Upated
 #************************************************************
 import argparse
 
-def parse_args():
+def create_parser():
   parser = argparse.ArgumentParser(description = "word2vec python implementation")
   parser.add_argument('--train', metavar='PATH', required = True, 
       help="--train <file>. Use text data from <file> to train the model")
