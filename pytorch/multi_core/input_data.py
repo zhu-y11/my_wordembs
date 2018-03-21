@@ -29,6 +29,11 @@ class InputData(object):
     self.vocab_file = self.infile + '.dict'
     self.min_count = min_count
 
+    self.file_pos = self.infile + '.pos'
+    # split the file into 20 parts
+    self.file_split = 20
+    self.pos = []
+
     # generate word -> freq vocab_file 
     if not os.path.exists(self.vocab_file):
       print('Did not found vocabulary file, generating vocabulary file...')
@@ -40,6 +45,7 @@ class InputData(object):
     self.idx2ct = None
     self.idx2freq = None
     self.read_vocab() 
+    self.read_pos()
     self.vocab_size = len(self.word2idx)
     self.word_ct = self.idx2ct.sum()
     print('Vocabulary size: {}'.format(self.vocab_size))
@@ -53,11 +59,17 @@ class InputData(object):
   def gen_vocab(self):
     word2ct = defaultdict(int)
     line_n = len(open(self.infile, 'r').readlines())
-    with open(self.infile, 'r') as fin:
-      for line in tqdm(fin, total = line_n):
+
+    line_step = line_n // self.file_split + 1 if line_n % self.file_split != 0 else line_n // self.file_split
+    with open(self.infile, 'r') as fin, open(self.file_pos, 'w') as fout:
+      for i in tqdm(range(line_n)):
+        line = fin.readline()
         linevec = line.strip().split(' ')
         for w in linevec:
-          word2ct[w] += 1
+          word2ct[w] += 1 
+        if i > 0 and i % line_step == 0:
+          fout.write('{}\n'.format(fin.tell()))
+      fout.write('{}\n'.format(fin.tell()))
     self.vocab_file = self.infile + '.dict'
     with open(self.vocab_file, 'w') as fout:
       # sort the pair in descending order
@@ -67,7 +79,7 @@ class InputData(object):
 
   def read_vocab(self):
     """
-    get word-> freq from vocab
+    #get word-> freq from vocab
     """
     word2freq = defaultdict(int)
     line_n = len(open(self.vocab_file, 'r').readlines())
@@ -90,13 +102,18 @@ class InputData(object):
     self.idx2ct = np.array(list(self.idx2ct.values()))
     self.idx2freq = self.idx2ct / self.idx2ct.sum()  
 
+  
+  def read_pos(self):
+    with open(self.file_pos, 'r') as fin:
+      self.pos = [int(x) for x in fin.read().strip().split('\n')]
+
 
   def init_sample_table(self):
     pow_ct = np.array(list(self.idx2ct)) ** 0.75
     words_pow = sum(pow_ct)
     self.neg_sample_probs = pow_ct / words_pow
 
-
+  
   def get_batch_pairs(self, linevec_idx, win_size):
     pairs = []
     for i, w in enumerate(linevec_idx):
@@ -116,8 +133,6 @@ class InputData(object):
       pair_values[k] = max(0, pair_values[k] - 1)
     return map(list, zip(*batch_in))
     '''
-
-
 
 if __name__ == '__main__':
   test = InputData('de.sent.small', 5)

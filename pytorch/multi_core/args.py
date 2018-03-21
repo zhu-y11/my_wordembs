@@ -39,6 +39,8 @@ def create_args():
       help = "initial learning rate")
   parser.add_argument("--batch_size", type = int, default = 10, 
       help = "(max) batch size")
+  parser.add_argument("--thread", type = int, default = 5, 
+      help = "number of threads")
   parser.add_argument("--cuda", action = 'store_true', default = True, 
       help = "enable cuda")
 
