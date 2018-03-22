@@ -12,7 +12,6 @@ https://github.com/ray1007/pytorch-word2vec/
 # Imported Libraries
 #************************************************************
 from collections import defaultdict
-from tqdm import tqdm
 import os
 import sys
 import numpy as np
@@ -50,7 +49,7 @@ class InputData(object):
     self.word_ct = self.idx2ct.sum()
     print('Vocabulary size: {}'.format(self.vocab_size))
     print("Words in train file: {}".format(self.word_ct))
-    
+
     self.sample_table_size = 1e8
     self.neg_sample_probs = None
     self.init_sample_table()
@@ -62,7 +61,7 @@ class InputData(object):
 
     line_step = line_n // self.file_split + 1 if line_n % self.file_split != 0 else line_n // self.file_split
     with open(self.infile, 'r') as fin, open(self.file_pos, 'w') as fout:
-      for i in tqdm(range(line_n)):
+      for i in range(line_n):
         line = fin.readline()
         linevec = line.strip().split(' ')
         for w in linevec:
@@ -84,7 +83,7 @@ class InputData(object):
     word2freq = defaultdict(int)
     line_n = len(open(self.vocab_file, 'r').readlines())
     with open(self.vocab_file, 'r') as fin:
-      for line in tqdm(fin, total = line_n):
+      for line in fin:
         linevec = line.strip().split()
         assert(len(linevec) == 2)
         word2freq[linevec[0].strip()] = int(linevec[1])
