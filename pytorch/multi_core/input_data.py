@@ -29,8 +29,8 @@ class InputData(object):
     self.min_count = min_count
 
     self.file_pos = self.infile + '.pos'
-    # split the file into 20 parts
-    self.file_split = 16
+    # split the file into n parts
+    self.file_split = 24
     self.pos = []
 
     # generate word -> freq vocab_file 
@@ -70,7 +70,6 @@ class InputData(object):
         if i > 0 and i % line_step == 0:
           fout.write('{}\n'.format(fin.tell()))
       fout.write('{}\n'.format(fin.tell()))
-    self.vocab_file = self.infile + '.dict'
     with open(self.vocab_file, 'w') as fout:
       # sort the pair in descending order
       for w, c in sorted(word2ct.items(), key = lambda x: x[1], reverse = True):

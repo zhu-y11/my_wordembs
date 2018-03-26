@@ -33,11 +33,11 @@ def create_args():
       help = "number of negative samples")
   parser.add_argument("--min_count", type = int, default = 5,
       help = "minimum frequency of a word")
-  parser.add_argument("--iter", type = int, default = 15, 
+  parser.add_argument("--iter", type = int, default = 5, 
       help = "number of iterations")
   parser.add_argument("--lr", type = float, default = -1.0,
       help = "initial learning rate")
-  parser.add_argument("--batch_size", type = int, default = 100, 
+  parser.add_argument("--batch_size", type = int, default = 512, 
       help = "(max) batch size")
   parser.add_argument("--thread", type = int, default = 5, 
       help = "number of threads")
