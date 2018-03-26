@@ -1,8 +1,8 @@
-# -*- coding: UTF-8 -*-
+## -*- coding: UTF-8 -*-
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  21/03/2018 
+Upated  23/03/2018 
 The code is borrowed from 
 https://github.com/Adoni/word2vec_pytorch/
 https://github.com/ray1007/pytorch-word2vec/
@@ -20,6 +20,7 @@ import torch
 import torch.optim as optim
 from torch.autograd import Variable
 import torch.multiprocessing as mp
+import torch.nn as nn
 
 from args import create_args
 from input_data import InputData
@@ -43,7 +44,7 @@ class Word2Vec:
     self.lr             = args.lr
     self.neg_n          = args.negative
     self.sub_samp_th    = args.sample
-    #subsampling, prob reserving the word
+    # subsampling, prob reserving the word
     self.sub_samp_probs = np.sqrt(self.sub_samp_th / self.data.idx2freq)      
     self.thread         = args.thread
     self.use_cuda       = args.cuda
@@ -51,10 +52,9 @@ class Word2Vec:
     print('Initializing models...')
     self.init_model(args)
     self.model.share_memory()
+    #self.model = nn.DataParallel(self.model)
     if self.use_cuda:
-        self.model.cuda()
-    self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr)
-    #self.optimizer = optim.SparseAdam(self.model.parameters(), lr = self.lr)
+        self.model = self.model.cuda()
 
 
   def init_model(self, args):
@@ -65,221 +65,141 @@ class Word2Vec:
 
 
 
-
-
-    '''
-    for i in range(self.iters):
-      # pos pairs for batch training
-      pairs = []
-      # store extra pos pairs for next batch
-      extra_pairs = []
-      word_ct = 0
-      last_word_ct = 0
-      total_loss = torch.Tensor([0])
-      with open(self.data.infile, 'r') as fin:
-        for line in fin:
-          t1 = time.time()
-          linevec_idx = [self.data.word2idx[w] for w in line.strip().split() if w in self.data.word2idx]
-          word_ct += len(linevec_idx)
-          # subsampling
-          linevec_idx = [w_idx for w_idx in linevec_idx if np.random.random_sample() <= self.sub_samp_probs[w_idx]]
-          if len(linevec_idx) == 1:
-            continue
-          pairs += self.data.get_batch_pairs(linevec_idx, self.win_size)
-          if len(pairs) < self.bs:
-            # not engouh training pairs
-            continue
-          extra_pairs = pairs[self.bs:]
-          pairs = pairs[:self.bs]
-
-          total_loss += self.train_batch(pairs, self.bs, neg_idxs)
-
-          pairs = extra_pairs[:]
-          extra_pairs = []
- 
-          if word_ct - last_word_ct > 10000:
-            word_tot_count += word_ct - last_word_ct
-            last_word_ct = word_ct
-            lr = self.lr * (1 - word_tot_count / (self.iters * self.data.word_ct))
-            if lr < 0.0001 * self.lr:
-              lr = 0.0001 * self.lr
-            for param_group in self.optimizer.param_groups:
-              param_group['lr'] = lr
-            sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %f" % (lr, word_tot_count / (self.iters * self.data.word_ct) * 100, total_loss, word_tot_count / (time.monotonic() - t_start)))
-            sys.stdout.flush()
-            total_loss = torch.Tensor([0])
-          print('loop:{}'.format(time.time() - t1))
-         
-        word_tot_count += word_ct - last_word_ct
-        if pairs:
-          total_loss += self.train_batch(pairs, len(pairs), neg_idxs)
-          sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %f" % (lr, word_tot_count / (self.iters * self.data.word_ct) * 100, total_loss, word_tot_count / (time.monotonic() - t_start)))
-          sys.stdout.flush()
-    self.model.save_embedding(self.data.idx2word, self.outfile, self.use_cuda)
-    '''
-
-
-
-
-
-
-
-
-
-  def gen_batch(self, pairs, bs, neg_idxs):
-    pos_u, pos_v = map(list, zip(*pairs))
-    neg_v = np.zeros((bs, self.neg_n), dtype = int)
-    # make sure pos pairs not in any neg pairs
-    neg_v_big = np.random.choice(neg_idxs, (bs, 2 * self.neg_n), p = self.data.neg_sample_probs)
-    for k in range(neg_v_big.shape[0]):
-      neg_v[k] = neg_v_big[k][np.nonzero(neg_v_big[k] != pos_v[k])[0]][:self.neg_n]
-
-    pos_u = Variable(torch.LongTensor(pos_u))
-    pos_v = Variable(torch.LongTensor(pos_v))
-    neg_v = Variable(torch.LongTensor(neg_v))
-    if self.use_cuda:
-      pos_u = pos_u.cuda()
-      pos_v = pos_v.cuda()
-      neg_v = neg_v.cuda() 
-
-    return (pos_u, pos_v, neg_v)
-
-
-  def train_batch(self, pairs, bs, neg_idxs):
-    t2 = time.time() 
-    pos_u, pos_v = map(list, zip(*pairs))
-    neg_v = np.zeros((bs, self.neg_n), dtype = int)
-    # make sure pos pairs not in any neg pairs
-    neg_v_big = np.random.choice(neg_idxs, (bs, 2 * self.neg_n), p = self.data.neg_sample_probs)
-    for k in range(neg_v_big.shape[0]):
-      neg_v[k] = neg_v_big[k][np.nonzero(neg_v_big[k] != pos_v[k])[0]][:self.neg_n]
-
-    print('io: {}'.format(time.time() - t2))
-    t3 = time.time()
-
-    pos_u = Variable(torch.LongTensor(pos_u))
-    pos_v = Variable(torch.LongTensor(pos_v))
-    neg_v = Variable(torch.LongTensor(neg_v))
-    if self.use_cuda:
-      pos_u = pos_u.cuda()
-      pos_v = pos_v.cuda()
-      neg_v = neg_v.cuda() 
-
-    self.optimizer.zero_grad()
-    loss = self.model.forward(pos_u, pos_v, neg_v)
-    loss.backward()
-    self.optimizer.step()
-    print('network: {}'.format(time.time() - t3))
-    print('function: {}'.format(time.time() - t2))
-    return loss.cpu().data
-
-
-
-def train(model):
+def train(model, args):
   neg_idxs = list(range(model.data.vocab_size))
   # total count
   word_tot_count = mp.Value('L', 0)
   processes = []
   for p_id in range(args.thread):
-    p = mp.Process(target = train_process, args = (p_id, word_tot_count, neg_idxs, model))
+    p = mp.Process(target = train_process, args = (p_id, word_tot_count, neg_idxs, model, args))
     processes.append(p)
     p.start()
   for p in processes:
     p.join()
+  print('\nOutput to file...')
+  model.model.save_embedding(model.data.idx2word, model.outfile, model.use_cuda)
 
 
-def train_process(p_id, word_tot_count, neg_idxs, model):
+def train_process(p_id, word_tot_count, neg_idxs, model, args):
   t_start = time.monotonic()
   data_queue = mp.SimpleQueue()
-
-  t = mp.Process(target = gen_input, args = (p_id, data_queue, word_tot_count, neg_idxs, model))
+  t = mp.Process(target = gen_input, args = (p_id, data_queue, word_tot_count, neg_idxs, model.data, model.sub_samp_probs, args))
   t.start()
   # get from data_queue and feed to model
   prev_word_ct = 0
   total_loss = torch.Tensor([0])
+  optimizer = optim.SGD(model.model.parameters(), lr = model.lr)
+  #optimizer = optim.SparseAdam(self.model.parameters(), lr = self.lr)
   while True:
     d = data_queue.get()
     if d is None:
       break
-    print(word_tot_count.value)
-    """
     else:
+      pos_u = Variable(torch.LongTensor(d[0]))
+      pos_v = Variable(torch.LongTensor(d[1]))
+      neg_v = Variable(torch.LongTensor(d[2]))
+      if args.cuda:
+        pos_u = pos_u.cuda()
+        pos_v = pos_v.cuda()
+        neg_v = neg_v.cuda() 
       # lr anneal & output
-      if word_tot_count.value - prev_word_ct > 100:
+      optimizer.zero_grad()
+      #loss = nn.parallel.data_parallel(model.model, (pos_u, pos_v, neg_v))
+      loss = model.model(pos_u, pos_v, neg_v)
+      #loss = model.model(d[0], d[1], d[2])
+      #print('hahaha')
+      loss.backward()
+      optimizer.step()
+      if model.use_cuda:
+        total_loss += loss.cpu().data
+      else:
+        total_loss += loss.data
+
+      if word_tot_count.value - prev_word_ct > 10000:
         lr = model.lr * (1 - word_tot_count.value / (model.iters * model.data.word_ct))
         if lr < 0.0001 * model.lr:
           lr = 0.0001 * model.lr
-        for param_group in model.optimizer.param_groups:
+        for param_group in optimizer.param_groups:
           param_group['lr'] = lr
-        sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %f" % (lr, word_tot_count.value / (model.iters * model.data.word_ct) * 100, total_loss, word_tot_count.value / (time.monotonic() - t_start)))
+        sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.2f" % (lr, word_tot_count.value / (model.iters * model.data.word_ct) * 100, total_loss, word_tot_count.value / (time.monotonic() - t_start)))
         sys.stdout.flush()
         total_loss = torch.Tensor([0])
         prev_word_ct = word_tot_count.value
-
-        model.optimizer.zero_grad()
-        loss = model.model(d[0], d[1], d[2])
-        if model.use_cuda:
-          total_loss += loss.cpu().data
-        else:
-          total_loss += loss.data
-        loss.backward()
-        model.optimizer.step()
-    """
   t.join()
+  #print('finish thread')
 
 
-
-
-
-def gen_input(p_id, data_queue, word_tot_count, neg_idxs, model):
-  read_step = (model.data.file_split // model.thread + 1 if model.data.file_split % model.thread != 0 
-      else model.data.file_split // model.thread)
-  start_pos = 0 if p_id == 0 else model.data.pos[p_id * read_step - 1]
-  end_pos = model.data.pos[min(model.data.file_split - 1, (p_id + 1) * read_step - 1)]
+def gen_input(p_id, data_queue, word_tot_count, neg_idxs, data, sub_samp_probs, args):
+  # TODO: fix bug for 12 threads
+  read_step = (data.file_split // args.thread + 1 if data.file_split % args.thread != 0 
+      else data.file_split // args.thread)
+  start_pos = 0 if p_id == 0 else data.pos[p_id * read_step - 1]
+  end_pos = data.pos[min(data.file_split - 1, (p_id + 1) * read_step - 1)]
   #print(p_id, read_step, start_pos, end_pos)
 
   # pos pairs for batch training
   pairs = []
   # store extra pos pairs for next batch
   extra_pairs = []
-  word_ct = 0
-  last_word_ct = 0
-  with open(model.data.infile) as fin:
-    fin.seek(start_pos, 0)
-    text = fin.read(end_pos - start_pos).strip()
+  for i in range(args.iter):
+    word_ct = 0
+    last_word_ct = 0
+    #print(i)
+    with open(data.infile) as fin:
+      fin.seek(start_pos, 0)
+      text = fin.read(end_pos - start_pos).strip()
+    for line in text.split('\n'):
+      linevec_idx = [data.word2idx[w] for w in line.strip().split() if w in data.word2idx]
+      word_ct += len(linevec_idx)
+      # subsampling
+      linevec_idx = [w_idx for w_idx in linevec_idx if np.random.random_sample() <= sub_samp_probs[w_idx]]
+      if len(linevec_idx) == 1:
+        continue
+      pairs += data.get_batch_pairs(linevec_idx, args.window)
+      if len(pairs) < args.batch_size:
+        # not engouh training pairs
+        continue 
+      extra_pairs = pairs[args.batch_size:]
+      pairs = pairs[:args.batch_size]
+      data_queue.put(gen_batch(data.neg_sample_probs, pairs, neg_idxs, args.batch_size, args.negative, args.cuda))
+      with word_tot_count.get_lock():
+        word_tot_count.value += word_ct - last_word_ct
+      last_word_ct = word_ct
 
-  for line in text.split('\n'):
-    t1 = time.time()
-    linevec_idx = [model.data.word2idx[w] for w in line.strip().split() if w in model.data.word2idx]
-    word_ct += len(linevec_idx)
-    # subsampling
-    linevec_idx = [w_idx for w_idx in linevec_idx if np.random.random_sample() <= model.sub_samp_probs[w_idx]]
-    if len(linevec_idx) == 1:
-      continue
-    pairs += model.data.get_batch_pairs(linevec_idx, model.win_size)
-    if len(pairs) < model.bs:
-      # not engouh training pairs
-      continue 
-    extra_pairs = pairs[model.bs:]
-    pairs = pairs[:model.bs]
+      pairs = extra_pairs[:]
+      extra_pairs = []
 
-    data_queue.put(model.gen_batch(pairs, model.bs, neg_idxs))
-    with word_tot_count.get_lock():
-      word_tot_count.value += word_ct - last_word_ct
-    last_word_ct = word_ct
+    if pairs:
+      #print('here again')
+      data_queue.put(gen_batch(data.neg_sample_probs, pairs, neg_idxs, len(pairs), args.negative, args.cuda))
+      #print('here again again again')
+      with word_tot_count.get_lock():
+        word_tot_count.value += word_ct - last_word_ct
+  data_queue.put(None)
+  #print('finish subprocess')
 
-    pairs = extra_pairs[:]
-    extra_pairs = []
 
-  with word_tot_count.get_lock():
-    word_tot_count.value += word_ct - last_word_ct
-  if pairs:
-    data_queue.put(model.gen_batch(pairs, len(pairs), neg_idxs))
-
+def gen_batch(neg_sample_probs, pairs, neg_idxs, bs, neg_n, use_cuda):
+  pos_u, pos_v = map(list, zip(*pairs))
+  neg_v = np.zeros((bs, neg_n), dtype = int)
+  # make sure pos pairs not in any neg pairs
+  neg_v_big = np.random.choice(neg_idxs, (bs, 2 * neg_n), p = neg_sample_probs)
+  for k in range(neg_v_big.shape[0]):
+    neg_v[k] = neg_v_big[k][np.nonzero(neg_v_big[k] != pos_v[k])[0]][:neg_n]
+  """
+  pos_u = Variable(torch.LongTensor(pos_u))
+  pos_v = Variable(torch.LongTensor(pos_v))
+  neg_v = Variable(torch.LongTensor(neg_v))
+  if use_cuda:
+    pos_u = pos_u.cuda()
+    pos_v = pos_v.cuda()
+    neg_v = neg_v.cuda() 
+  """
+  return (pos_u, pos_v, neg_v)
 
 
 if __name__ == '__main__':
-  set_start_method('forkserver')
+  set_start_method('spawn')
   args = create_args()
   w2v = Word2Vec(args)
-  train(w2v) 
+  train(w2v, args) 

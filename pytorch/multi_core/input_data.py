@@ -30,7 +30,7 @@ class InputData(object):
 
     self.file_pos = self.infile + '.pos'
     # split the file into 20 parts
-    self.file_split = 20
+    self.file_split = 16
     self.pos = []
 
     # generate word -> freq vocab_file 
@@ -58,10 +58,11 @@ class InputData(object):
   def gen_vocab(self):
     word2ct = defaultdict(int)
     line_n = len(open(self.infile, 'r').readlines())
-
     line_step = line_n // self.file_split + 1 if line_n % self.file_split != 0 else line_n // self.file_split
     with open(self.infile, 'r') as fin, open(self.file_pos, 'w') as fout:
       for i in range(line_n):
+        sys.stdout.write('{}/{}\r'.format(i, line_n))
+        sys.stdout.flush()
         line = fin.readline()
         linevec = line.strip().split(' ')
         for w in linevec:
