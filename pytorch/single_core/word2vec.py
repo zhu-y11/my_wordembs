@@ -78,7 +78,7 @@ class Word2Vec:
       total_loss = torch.Tensor([0])
       with open(self.data.infile, 'r') as fin:
         for line in fin:
-          t1 = time.time()
+          #t1 = time.time()
           linevec_idx = [self.data.word2idx[w] for w in line.strip().split() if w in self.data.word2idx]
           word_ct += len(linevec_idx)
           # subsampling
@@ -105,10 +105,10 @@ class Word2Vec:
               lr = 0.0001 * self.lr
             for param_group in self.optimizer.param_groups:
               param_group['lr'] = lr
-            sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %f" % (lr, word_tot_count / (self.iters * self.data.word_ct) * 100, total_loss, word_tot_count / (time.monotonic() - t_start)))
+            sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.2f" % (lr, word_tot_count / (self.iters * self.data.word_ct) * 100, total_loss, word_tot_count / (time.monotonic() - t_start)))
             sys.stdout.flush()
             total_loss = torch.Tensor([0])
-          print('loop:{}'.format(time.time() - t1))
+          #print('loop:{}'.format(time.time() - t1))
          
         word_tot_count += word_ct - last_word_ct
         if pairs:
@@ -119,7 +119,7 @@ class Word2Vec:
 
 
   def train_batch(self, pairs, bs, neg_idxs):
-    t2 = time.time() 
+    #t2 = time.time() 
     pos_u, pos_v = map(list, zip(*pairs))
     neg_v = np.zeros((bs, self.neg_n), dtype = int)
     # make sure pos pairs not in any neg pairs
@@ -127,8 +127,8 @@ class Word2Vec:
     for k in range(neg_v_big.shape[0]):
       neg_v[k] = neg_v_big[k][np.nonzero(neg_v_big[k] != pos_v[k])[0]][:self.neg_n]
 
-    print('io: {}'.format(time.time() - t2))
-    t3 = time.time()
+    #print('io: {}'.format(time.time() - t2))
+    #t3 = time.time()
 
     pos_u = Variable(torch.LongTensor(pos_u))
     pos_v = Variable(torch.LongTensor(pos_v))
@@ -143,8 +143,8 @@ class Word2Vec:
     loss = self.model.forward(pos_u, pos_v, neg_v)
     loss.backward()
     self.optimizer.step()
-    print('network: {}'.format(time.time() - t3))
-    print('function: {}'.format(time.time() - t2))
+    #print('network: {}'.format(time.time() - t3))
+    #print('function: {}'.format(time.time() - t2))
     return loss.cpu().data
 
 

@@ -37,7 +37,7 @@ def create_args():
       help = "number of iterations")
   parser.add_argument("--lr", type = float, default = -1.0,
       help = "initial learning rate")
-  parser.add_argument("--batch_size", type = int, default = 512, 
+  parser.add_argument("--batch_size", type = int, default = 100, 
       help = "(max) batch size")
   parser.add_argument("--thread", type = int, default = 5, 
       help = "number of threads")

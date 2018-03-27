@@ -2,7 +2,7 @@
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  21/03/2018
+Upated  27/03/2018
 The code is borrowed from 
 https://github.com/Adoni/word2vec_pytorch/
 https://github.com/ray1007/pytorch-word2vec/
@@ -20,7 +20,7 @@ import pdb
 
 
 class InputData(object):
-  def __init__(self, infile, min_count):
+  def __init__(self, infile, min_count, thread_n = 1):
     """
     vocab_file: file containing word freq pairs
     """
@@ -28,10 +28,10 @@ class InputData(object):
     self.vocab_file = self.infile + '.dict'
     self.min_count = min_count
 
-    self.file_pos = self.infile + '.pos'
-    # split the file into n parts
-    self.file_split = 24
-    self.pos = []
+    # split the file into n parts, n = thread_number
+    self.start_pos = []
+    self.end_pos = []
+    self.get_pos(thread_n)
 
     # generate word -> freq vocab_file 
     if not os.path.exists(self.vocab_file):
@@ -44,7 +44,6 @@ class InputData(object):
     self.idx2ct = None
     self.idx2freq = None
     self.read_vocab() 
-    self.read_pos()
     self.vocab_size = len(self.word2idx)
     self.word_ct = self.idx2ct.sum()
     print('Vocabulary size: {}'.format(self.vocab_size))
@@ -58,8 +57,7 @@ class InputData(object):
   def gen_vocab(self):
     word2ct = defaultdict(int)
     line_n = len(open(self.infile, 'r').readlines())
-    line_step = line_n // self.file_split + 1 if line_n % self.file_split != 0 else line_n // self.file_split
-    with open(self.infile, 'r') as fin, open(self.file_pos, 'w') as fout:
+    with open(self.infile, 'r') as fin:
       for i in range(line_n):
         sys.stdout.write('{}/{}\r'.format(i, line_n))
         sys.stdout.flush()
@@ -67,13 +65,34 @@ class InputData(object):
         linevec = line.strip().split(' ')
         for w in linevec:
           word2ct[w] += 1 
-        if i > 0 and i % line_step == 0:
-          fout.write('{}\n'.format(fin.tell()))
-      fout.write('{}\n'.format(fin.tell()))
     with open(self.vocab_file, 'w') as fout:
       # sort the pair in descending order
       for w, c in sorted(word2ct.items(), key = lambda x: x[1], reverse = True):
         fout.write('{}\t{}\n'.format(w, c))
+  
+
+  def get_pos(self, thread_n):
+    file_size = os.path.getsize(self.infile) #size of file (in bytes)
+    #break the file into 20 chunks for processing.
+    file_step = file_size // thread_n if file_size % thread_n == 0 else file_size // thread_n + 1
+    initial_chunks = range(1, file_size, file_step)
+    with open(self.infile, 'r') as fin:
+      self.start_pos = sorted(set([self.newlinebefore(fin, i) for i in initial_chunks]))
+    assert(len(self.start_pos) == thread_n)
+    self.end_pos = [i - 1 for i in self.start_pos] [1:] + [None]
+
+
+  def newlinebefore(self, f, n):
+    f.seek(n)
+    c = f.read(1)
+    while c != '\n' and n > 0:
+      n -= 1
+      f.seek(n)
+      try:
+        c = f.read(1)
+      except UnicodeDecodeError:
+        continue
+    return n
 
 
   def read_vocab(self):
@@ -100,11 +119,6 @@ class InputData(object):
       idx += 1
     self.idx2ct = np.array(list(self.idx2ct.values()))
     self.idx2freq = self.idx2ct / self.idx2ct.sum()  
-
-  
-  def read_pos(self):
-    with open(self.file_pos, 'r') as fin:
-      self.pos = [int(x) for x in fin.read().strip().split('\n')]
 
 
   def init_sample_table(self):
