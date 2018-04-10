@@ -64,7 +64,7 @@ class SkipGramModel(nn.Module):
       for word_idx, word in input_data.idx2word.items():
         word_idxs = Variable(torch.LongTensor([word_idx]))
         if use_cuda:
-          word_idxs = word_idx.cuda()
+          word_idxs = word_idxs.cuda()
         word_embs = self.u_embeddings(word_idxs).cpu().data.numpy()
         word_embs = ' '.join(map(lambda x: str(x), word_embs[0]))
         fout.write('{} {}\n'.format(word, word_embs))
