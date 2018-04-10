@@ -1,0 +1,153 @@
+# -*- coding: UTF-8 -*-
+#!/usr/bin/python3
+"""
+@Author Yi Zhu
+Upated  10/04/2018 
+The code is borrowed from 
+https://github.com/Adoni/word2vec_pytorch/
+https://github.com/ray1007/pytorch-word2vec/
+"""
+
+#************************************************************
+# Imported Libraries
+#************************************************************
+import numpy as np
+import time
+import sys
+
+import torch
+import torch.optim as optim
+from torch.autograd import Variable
+
+from args import create_args
+from input_data import InputData
+from skip_gram import SkipGramModel
+
+import pdb
+
+np.random.seed(1234)
+torch.manual_seed(1234)
+
+
+class Word2Vec:
+  def __init__(self, args):
+    # data class
+    self.data           = InputData(args.train, args.min_count)
+
+    self.outfile        = args.output                                       
+    self.save_model     = args.save_model
+    self.load_model     = args.load_model
+    self.emb_dim        = args.size                                         
+    self.bs             = args.batch_size
+    self.win_size       = args.window
+    self.iters          = args.iter
+    self.lr             = args.lr
+    self.neg_n          = args.negative
+    self.sub_samp_th    = args.sample
+    #subsampling,  prob reserving the word
+    self.sub_samp_probs = np.sqrt(self.sub_samp_th / self.data.idx2freq)      
+    self.use_cuda       = args.cuda
+
+    print('Initializing models...')
+    self.init_model(args)
+    if self.use_cuda:
+        self.model.cuda()
+
+
+  def init_model(self, args):
+    if args.cbow == 0:
+      if self.lr == -1.0:
+        self.lr = 0.025
+      if self.load_model is not None:
+        self.model = torch.load(self.load_model) 
+      else: 
+        self.model = SkipGramModel(self.data.vocab_size, self.emb_dim)
+
+
+
+def train(w2v):
+  t_start = time.monotonic()
+  neg_idxs = list(range(w2v.data.vocab_size))
+  word_ct = 0 
+  # total count
+  word_tot_count = 0
+  # pos pairs for batch training
+  pairs = []
+
+  # total loss for a checkpoint
+  total_loss = torch.Tensor([0]) 
+  # optimizer
+  optimizer = optim.SGD(filter(lambda p: p.requires_grad, w2v.model.parameters()), lr = w2v.lr)
+  for i in range(w2v.iters):
+    with open(w2v.data.infile, 'r') as fin:
+      for line in fin:
+        linevec_idx = [w2v.data.word2idx[w] for w in line.strip().split() if w in w2v.data.word2idx]
+        word_ct += len(linevec_idx)
+        # subsampling
+        linevec_idx = [w_idx for w_idx in linevec_idx if np.random.random_sample() <= w2v.sub_samp_probs[w_idx]]
+        if len(linevec_idx) > 1:
+          pairs += w2v.data.get_batch_pairs(linevec_idx, w2v.win_size)
+        if len(pairs) < w2v.bs:
+          # not engouh training pairs
+          continue
+
+        total_loss += train_batch(w2v, optimizer, pairs[:w2v.bs], w2v.bs, neg_idxs) 
+        pairs = pairs[w2v.bs:]
+
+        if word_ct > 10000:
+          word_tot_count += word_ct
+          word_ct = 0
+          lr = w2v.lr * (1 - word_tot_count / (w2v.iters * w2v.data.word_ct))
+          if lr < 0.0001 * w2v.lr:
+            lr = 0.0001 * w2v.lr
+          for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+          sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.1f" 
+                            % (lr, 
+                            word_tot_count / (w2v.iters * w2v.data.word_ct) * 100, 
+                            total_loss, 
+                            word_tot_count / (time.monotonic() - t_start)))  
+          sys.stdout.flush()
+          total_loss = torch.Tensor([0])
+       
+  if pairs:
+    while pairs:
+      total_loss += train_batch(w2v, optimizer, pairs[:w2v.bs], len(pairs[:w2v.bs]), neg_idxs)
+      pairs = pairs[w2v.bs:]
+    word_tot_count += word_ct
+    sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.1f"
+                          % (lr, 
+                          word_tot_count / (w2v.iters * w2v.data.word_ct) * 100, 
+                          total_loss, 
+                          word_tot_count / (time.monotonic() - t_start)))
+    sys.stdout.flush()
+
+  print('\nOutput to file...')
+  w2v.model.save_embedding(w2v.data, w2v.outfile, w2v.save_model, w2v.use_cuda)
+
+
+def train_batch(w2v, optimizer, pairs, bs, neg_idxs):
+  pos_u, pos_v = map(list, zip(*pairs))
+  neg_v = np.zeros((bs, w2v.neg_n), dtype = int)
+  neg_v = np.random.choice(neg_idxs, (bs, w2v.neg_n), p = w2v.data.neg_sample_probs)
+
+  pos_u = Variable(torch.LongTensor(pos_u))
+  pos_v = Variable(torch.LongTensor(pos_v))
+  neg_v = Variable(torch.LongTensor(neg_v))
+  if w2v.use_cuda:
+    pos_u = pos_u.cuda()
+    pos_v = pos_v.cuda()
+    neg_v = neg_v.cuda() 
+
+  optimizer.zero_grad()
+  loss = w2v.model.forward(pos_u, pos_v, neg_v)
+  loss.backward()
+  torch.nn.utils.clip_grad_norm(filter(lambda p: p.grad is not None and p.requires_grad and not p.grad.data.is_sparse, w2v.model.parameters()), 5)  
+  optimizer.step()
+  return loss.cpu().data
+
+
+if __name__ == '__main__':
+  args = create_args()
+  w2v = Word2Vec(args)
+  train(w2v) 
