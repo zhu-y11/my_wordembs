@@ -73,11 +73,13 @@ def train(w2v):
   word_tot_count = 0
   # pos pairs for batch training
   pairs = []
-
+  # numbers of batches
+  bs_n = 0
   # total loss for a checkpoint
   total_loss = torch.Tensor([0]) 
   # optimizer
-  optimizer = optim.SGD(filter(lambda p: p.requires_grad, w2v.model.parameters()), lr = w2v.lr)
+  #optimizer = optim.SGD(filter(lambda p: p.requires_grad, w2v.model.parameters()), lr = w2v.lr)
+  optimizer = optim.SparseAdam(filter(lambda p: p.requires_grad, w2v.model.parameters()), lr = w2v.lr)
   for i in range(w2v.iters):
     with open(w2v.data.infile, 'r') as fin:
       for line in fin:
@@ -93,32 +95,38 @@ def train(w2v):
 
         total_loss += train_batch(w2v, optimizer, pairs[:w2v.bs], w2v.bs, neg_idxs) 
         pairs = pairs[w2v.bs:]
+        bs_n += 1
 
-        if word_ct > 10000:
+        if word_ct > 1e4:
           word_tot_count += word_ct
           word_ct = 0
+          lr = 0
+          '''
           lr = w2v.lr * (1 - word_tot_count / (w2v.iters * w2v.data.word_ct))
           if lr < 0.0001 * w2v.lr:
             lr = 0.0001 * w2v.lr
           for param_group in optimizer.param_groups:
             param_group['lr'] = lr
+          '''
           sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.1f" 
                             % (lr, 
                             word_tot_count / (w2v.iters * w2v.data.word_ct) * 100, 
-                            total_loss, 
+                            total_loss / bs_n, 
                             word_tot_count / (time.monotonic() - t_start)))  
           sys.stdout.flush()
           total_loss = torch.Tensor([0])
+          bs_n = 0
        
   if pairs:
     while pairs:
       total_loss += train_batch(w2v, optimizer, pairs[:w2v.bs], len(pairs[:w2v.bs]), neg_idxs)
+      bs_n += 1
       pairs = pairs[w2v.bs:]
     word_tot_count += word_ct
     sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.1f"
                           % (lr, 
                           word_tot_count / (w2v.iters * w2v.data.word_ct) * 100, 
-                          total_loss, 
+                          total_loss / bs_n, 
                           word_tot_count / (time.monotonic() - t_start)))
     sys.stdout.flush()
 
@@ -142,7 +150,6 @@ def train_batch(w2v, optimizer, pairs, bs, neg_idxs):
   optimizer.zero_grad()
   loss = w2v.model.forward(pos_u, pos_v, neg_v)
   loss.backward()
-  torch.nn.utils.clip_grad_norm(filter(lambda p: p.grad is not None and p.requires_grad and not p.grad.data.is_sparse, w2v.model.parameters()), 5)  
   optimizer.step()
   return loss.cpu().data
 

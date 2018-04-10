@@ -117,7 +117,7 @@ def train_process(p_id, real_word_ct, word_tot_count, neg_idxs, w2v):
         word_tot_count.value += word_ct
       word_ct = 0
 
-      if word_tot_count.value - prev_word_ct > 10000:
+      if word_tot_count.value - prev_word_ct > 200 * w2v.bs:
         lr = w2v.lr * (1 - word_tot_count.value / (w2v.iters * real_word_ct.value))
         if lr < 0.0001 * w2v.lr:
           lr = 0.0001 * w2v.lr
