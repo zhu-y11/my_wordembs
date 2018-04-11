@@ -2,10 +2,8 @@
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  10/04/2018 
-The code is borrowed from 
-https://github.com/Adoni/word2vec_pytorch/
-https://github.com/ray1007/pytorch-word2vec/
+Upated  11/04/2018 
+fastText Pytorch Implementation
 """
 
 #************************************************************
@@ -29,10 +27,10 @@ np.random.seed(1234)
 torch.manual_seed(1234)
 
 
-class Word2Vec:
+class FastText:
   def __init__(self, args):
     # data class
-    self.data           = InputData(args.train, args.min_count)
+    self.data           = InputData(args.train, args.min_count, args.minn, args.maxn)
 
     self.outfile        = args.output                                       
     self.save_model     = args.save_model
@@ -57,18 +55,18 @@ class Word2Vec:
   def init_model(self, args):
     if args.cbow == 0:
       if self.lr == -1.0:
-        self.lr = 0.025
+        self.lr = 0.05
       if self.load_model is not None:
         self.model = torch.load(self.load_model) 
         self.model.train()
       else: 
-        self.model = SkipGramModel(self.data.vocab_size, self.emb_dim)
+        self.model = SkipGramModel(self.data.ngm_size, self.data.vocab_size, self.emb_dim)
 
 
 
-def train(w2v):
+def train(ft):
   t_start = time.monotonic()
-  neg_idxs = list(range(w2v.data.vocab_size))
+  neg_idxs = list(range(ft.data.vocab_size))
   word_ct = 0 
   # total count
   word_tot_count = 0
@@ -79,37 +77,37 @@ def train(w2v):
   # total loss for a checkpoint
   total_loss = torch.Tensor([0]) 
   # optimizer
-  #optimizer = optim.SGD(filter(lambda p: p.requires_grad, w2v.model.parameters()), lr = w2v.lr)
-  optimizer = optim.SparseAdam(filter(lambda p: p.requires_grad, w2v.model.parameters()), lr = w2v.lr)
-  for i in range(w2v.iters):
-    with open(w2v.data.infile, 'r') as fin:
+  optimizer = optim.SGD(filter(lambda p: p.requires_grad, ft.model.parameters()), lr = ft.lr)
+  #optimizer = optim.SparseAdam(filter(lambda p: p.requires_grad, ft.model.parameters()), lr = ft.lr)
+  for i in range(ft.iters):
+    with open(ft.data.infile, 'r') as fin:
       for line in fin:
-        linevec_idx = [w2v.data.word2idx[w] for w in line.strip().split() if w in w2v.data.word2idx]
+        linevec_idx = [ft.data.word2idx[w] for w in line.strip().split() if w in ft.data.word2idx]
         word_ct += len(linevec_idx)
         # subsampling
-        linevec_idx = [w_idx for w_idx in linevec_idx if np.random.random_sample() <= w2v.sub_samp_probs[w_idx]]
+        linevec_idx = [w_idx for w_idx in linevec_idx if np.random.random_sample() <= ft.sub_samp_probs[w_idx]]
         if len(linevec_idx) > 1:
-          pairs += w2v.data.get_batch_pairs(linevec_idx, w2v.win_size)
-        if len(pairs) < w2v.bs:
+          pairs += ft.data.get_batch_pairs(linevec_idx, ft.win_size)
+        if len(pairs) < ft.bs:
           # not engouh training pairs
           continue
 
-        total_loss += train_batch(w2v, optimizer, pairs[:w2v.bs], w2v.bs, neg_idxs) 
-        pairs = pairs[w2v.bs:]
+        total_loss += train_batch(ft, optimizer, pairs[:ft.bs], ft.bs, neg_idxs) 
+        pairs = pairs[ft.bs:]
         bs_n += 1
 
         if word_ct > 1e4:
           word_tot_count += word_ct
           word_ct = 0
           lr = 0
-          lr = w2v.lr * (1 - word_tot_count / (w2v.iters * w2v.data.word_ct))
-          if lr < 0.0001 * w2v.lr:
-            lr = 0.0001 * w2v.lr
+          lr = ft.lr * (1 - word_tot_count / (ft.iters * ft.data.word_ct))
+          if lr < 0.0001 * ft.lr:
+            lr = 0.0001 * ft.lr
           for param_group in optimizer.param_groups:
             param_group['lr'] = lr
           sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.1f" 
                             % (lr, 
-                            word_tot_count / (w2v.iters * w2v.data.word_ct) * 100, 
+                            word_tot_count / (ft.iters * ft.data.word_ct) * 100, 
                             total_loss / bs_n, 
                             word_tot_count / (time.monotonic() - t_start)))  
           sys.stdout.flush()
@@ -118,42 +116,50 @@ def train(w2v):
        
   if pairs:
     while pairs:
-      total_loss += train_batch(w2v, optimizer, pairs[:w2v.bs], len(pairs[:w2v.bs]), neg_idxs)
+      total_loss += train_batch(ft, optimizer, pairs[:ft.bs], len(pairs[:ft.bs]), neg_idxs)
       bs_n += 1
-      pairs = pairs[w2v.bs:]
+      pairs = pairs[ft.bs:]
     word_tot_count += word_ct
     sys.stdout.write("\rAlpha: %0.8f, Progess: %0.2f, Loss: %0.5f, Words/sec: %0.1f"
                           % (lr, 
-                          word_tot_count / (w2v.iters * w2v.data.word_ct) * 100, 
+                          word_tot_count / (ft.iters * ft.data.word_ct) * 100, 
                           total_loss / bs_n, 
                           word_tot_count / (time.monotonic() - t_start)))
     sys.stdout.flush()
 
   print('\nOutput to file...')
-  w2v.model.save_embedding(w2v.data, w2v.outfile, w2v.save_model, w2v.use_cuda)
+  ft.model.save_embedding(ft.data, ft.outfile, ft.save_model, ft.use_cuda)
 
 
-def train_batch(w2v, optimizer, pairs, bs, neg_idxs):
+def train_batch(ft, optimizer, pairs, bs, neg_idxs):
   pos_u, pos_v = map(list, zip(*pairs))
-  neg_v = np.zeros((bs, w2v.neg_n), dtype = int)
-  neg_v = np.random.choice(neg_idxs, (bs, w2v.neg_n), p = w2v.data.neg_sample_probs)
+  neg_v = np.zeros((bs, ft.neg_n), dtype = int)
+  neg_v = np.random.choice(neg_idxs, (bs, ft.neg_n), p = ft.data.neg_sample_probs)
 
-  pos_u = Variable(torch.LongTensor(pos_u))
+  pos_u = get_seqs(ft, pos_u)
   pos_v = Variable(torch.LongTensor(pos_v))
   neg_v = Variable(torch.LongTensor(neg_v))
-  if w2v.use_cuda:
+
+  if ft.use_cuda:
     pos_u = pos_u.cuda()
     pos_v = pos_v.cuda()
     neg_v = neg_v.cuda() 
 
   optimizer.zero_grad()
-  loss = w2v.model(pos_u, pos_v, neg_v)
+  loss = ft.model(pos_u, pos_v, neg_v)
   loss.backward()
   optimizer.step()
   return loss.cpu().data
 
 
+def get_seqs(ft, seqs):
+  new_seqs = []
+  for seq in seqs:
+    new_seqs.append(ft.data.wdidx2ngidx[seq])
+  return Variable(torch.LongTensor(np.array(new_seqs)), requires_grad = False)
+
+
 if __name__ == '__main__':
   args = create_args()
-  w2v = Word2Vec(args)
-  train(w2v) 
+  ft = FastText(args)
+  train(ft) 
