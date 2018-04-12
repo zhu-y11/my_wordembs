@@ -29,11 +29,11 @@ def create_args():
       help = "word embedding dimension")
   parser.add_argument("--cbow", type = int, default = 0,
       help = "1 for cbow, 0 for skipgram")
-  parser.add_argument("--window", type = int, default = 5,
+  parser.add_argument("--window", type = int, default = 8,
       help = "context window size")
   parser.add_argument("--sample", type = float, default = 1e-5,
       help="subsample threshold")
-  parser.add_argument("--negative", type = int, default = 2,
+  parser.add_argument("--negative", type = int, default = 5,
       help = "number of negative samples")
   parser.add_argument("--min_count", type = int, default = 5,
       help = "minimum frequency of a word")
@@ -41,7 +41,7 @@ def create_args():
       help = "number of iterations")
   parser.add_argument("--lr", type = float, default = -1.0,
       help = "initial learning rate")
-  parser.add_argument("--batch_size", type = int, default = 100, 
+  parser.add_argument("--batch_size", type = int, default = 512, 
       help = "(max) batch size")
   parser.add_argument("--thread", type = int, default = 8, 
       help = "number of threads")

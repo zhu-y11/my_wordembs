@@ -2,7 +2,7 @@
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  10/04/2018 
+Upated  12/04/2018 
 The code is borrowed from 
 https://github.com/Adoni/word2vec_pytorch/
 https://github.com/ray1007/pytorch-word2vec/
@@ -59,6 +59,7 @@ class Word2Vec:
       if self.lr == -1.0:
         self.lr = 0.025
       if self.load_model is not None:
+        print('Loading model from: {}...'.format(self.load_model)) 
         self.model = torch.load(self.load_model) 
         self.model.train()
       else: 
@@ -68,6 +69,7 @@ class Word2Vec:
 
 def train(w2v):
   t_start = time.monotonic()
+  lr = 0
   neg_idxs = list(range(w2v.data.vocab_size))
   word_ct = 0 
   # total count
@@ -129,7 +131,7 @@ def train(w2v):
                           word_tot_count / (time.monotonic() - t_start)))
     sys.stdout.flush()
 
-  print('\nOutput to file...')
+  print('\nOutput to file: {}\nSave model to: {}'.format(ft.outfile, ft.save_model)) 
   w2v.model.save_embedding(w2v.data, w2v.outfile, w2v.save_model, w2v.use_cuda)
 
 

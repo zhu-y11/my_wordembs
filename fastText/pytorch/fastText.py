@@ -2,7 +2,7 @@
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  11/04/2018 
+Upated  12/04/2018 
 fastText Pytorch Implementation
 """
 
@@ -57,6 +57,7 @@ class FastText:
       if self.lr == -1.0:
         self.lr = 0.05
       if self.load_model is not None:
+        print('Loading model from: {}...'.format(self.load_model))
         self.model = torch.load(self.load_model) 
         self.model.train()
       else: 
@@ -66,6 +67,7 @@ class FastText:
 
 def train(ft):
   t_start = time.monotonic()
+  lr = 0
   neg_idxs = list(range(ft.data.vocab_size))
   word_ct = 0 
   # total count
@@ -127,7 +129,7 @@ def train(ft):
                           word_tot_count / (time.monotonic() - t_start)))
     sys.stdout.flush()
 
-  print('\nOutput to file...')
+  print('\nOutput to file: {}\nSave model to: {}'.format(ft.outfile, ft.save_model))
   ft.model.save_embedding(ft.data, ft.outfile, ft.save_model, ft.use_cuda)
 
 

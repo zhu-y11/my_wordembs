@@ -2,7 +2,7 @@
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  11/04/2018 
+Upated  12/04/2018 
 fastText Pytorch Implementation
 """
 

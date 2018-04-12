@@ -62,6 +62,7 @@ class Word2Vec:
       if self.lr == -1.0:
         self.lr = 0.025
       if self.load_model is not None:
+        print('Loading model from: {}...'.format(self.load_model)) 
         self.model = torch.load(self.load_model) 
         self.model.train()
       else: 
@@ -81,7 +82,7 @@ def train(w2v):
     p.start()
   for p in processes:
     p.join()
-  print('\nOutput to file...')
+  print('\nOutput to file: {}\nSave model to: {}'.format(ft.outfile, ft.save_model)) 
   w2v.model.save_embedding(w2v.data, w2v.outfile, w2v.save_model, w2v.use_cuda)
 
 
@@ -91,6 +92,7 @@ def train_process(p_id, real_word_ct, word_tot_count, neg_idxs, w2v):
     real_word_ct.value += sum([len([w for w in line.strip().split() if w in w2v.data.word2idx]) for line in text]) 
   
   t_start = time.monotonic()
+  lr = 0
   # pos pairs for batch training
   word_ct = 0
   prev_word_ct = 0
@@ -183,6 +185,7 @@ def train_batch(w2v, optimizer, pairs, bs, neg_idxs):
 
 
 if __name__ == '__main__':
+  set_start_method('spwan')
   args = create_args()
   w2v = Word2Vec(args)
   train(w2v) 
