@@ -2,7 +2,7 @@
 #!/usr/bin/python3
 """
 @Author Yi Zhu
-Upated  10/04/2018 
+Upated  15/04/2018 
 The code is borrowed from 
 https://github.com/Adoni/word2vec_pytorch/
 https://github.com/ray1007/pytorch-word2vec/
@@ -185,7 +185,7 @@ def train_batch(w2v, optimizer, pairs, bs, neg_idxs):
 
 
 if __name__ == '__main__':
-  set_start_method('spwan')
+  set_start_method('spawn')
   args = create_args()
   w2v = Word2Vec(args)
   train(w2v) 
