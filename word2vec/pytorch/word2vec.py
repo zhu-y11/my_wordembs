@@ -131,7 +131,7 @@ def train(w2v):
                           word_tot_count / (time.monotonic() - t_start)))
     sys.stdout.flush()
 
-  print('\nOutput to file: {}\nSave model to: {}'.format(ft.outfile, ft.save_model)) 
+  print('\nOutput to file: {}\nSave model to: {}'.format(w2v.outfile, w2v.save_model)) 
   w2v.model.save_embedding(w2v.data, w2v.outfile, w2v.save_model, w2v.use_cuda)
 
 
